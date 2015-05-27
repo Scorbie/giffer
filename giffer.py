@@ -149,5 +149,6 @@ for f in xrange(gens*fpg):
     if ((fpg == 1) | (f % fpg == fpg - 1)):
         g.run(1)
         g.update()
+gif.write('\x3B')
 gif.close()
 g.show("GIF animation saved in " + filename)
