@@ -7,7 +7,10 @@ import os
 import struct
 from collections import namedtuple
 
-from dialog import getstrings
+try:
+    from dialog import getstrings
+except:
+    from giffer_fallback import getstrings
 
 ########################################################################
 # Color schemes
@@ -115,6 +118,7 @@ def parseinputs():
     if(canvaswidth>=65536 or canvasheight>=65536):
         g.exit("The width or height of the GIF file must be less than 65536 pixels. "
                "Received width: {}, height: {}".format(canvaswidth, canvasheight))
+    # TODO: return the parameters instead of using globals.
 
 ########################################################################
 # GIF formatting
