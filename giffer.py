@@ -5,7 +5,6 @@
 import golly as g
 import os
 import struct
-from collections import namedtuple
 
 try:
     from dialog import getstrings

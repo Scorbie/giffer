@@ -7,13 +7,15 @@ class StringsDialog(ttk.Frame):
     """A dialog window that can get a multiple string responses."""
     def __init__(self, master, entries, width=10):
         ttk.Frame.__init__(self, master)
-        self.grid(column=0, row=0, sticky=(N, W, E, S))
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
+        self.pack(expand=True, fill=BOTH)
         # Response data
-        self.responses = []
         self.respentries = []
         self.aborted = True
+        # Top Dialog frame
+        dialog_frame = ttk.Frame(self)
+        dialog_frame.pack(side=TOP, expand=True, fill=BOTH)
+        dialog_frame.columnconfigure(0, weight=1)
+        dialog_frame.rowconfigure(0, weight=1)
         # Build the items in the window
         for index, entry in enumerate(entries):
             try:
@@ -21,18 +23,21 @@ class StringsDialog(ttk.Frame):
                 if initial is None:
                     initial = ''
             except:
-                raise TypeError('Each prompt should contain a prompt and '
-                                'an initial value!')
-            ttk.Label(self, text=prompt).grid(column=0, row=index)
-            resp = ttk.Entry(self, width=width)
+                raise TypeError(
+                    'Each prompt should contain a prompt and an initial value!'
+                )
+            ttk.Label(dialog_frame, text=prompt).grid(column=0, row=index)
+            resp = ttk.Entry(dialog_frame, width=width)
             resp.grid(column=1, row=index)
             resp.insert(0, initial)
             self.respentries.append(resp)
-            self.responses.append(initial)
-        ttk.Button(self, text="OK",
-                   command=self.getresponses).grid(column=0, row=index+1)
-        ttk.Button(self, text="Cancel",
-                   command=self.master.destroy).grid(column=1, row=index+1)
+        # Select a button below.
+        button_frame = ttk.Frame(self)
+        button_frame.pack(side=TOP, expand=True, fill=BOTH)
+        button_ok = ttk.Button(button_frame, text="OK", command=self.getresponses)
+        button_ok.pack(side=LEFT, expand=True)
+        button_cancel = ttk.Button(button_frame, text="Cancel", command=self.master.destroy)
+        button_cancel.pack(side=LEFT, expand=True)
 
     def getresponses(self):
         """Get all the responses and close the window."""
@@ -99,8 +104,11 @@ def getbool(prompt, title=''):
     root = Tk()
     root.title(title)
     # This places the window at the center.
-    root.eval('tk::PlaceWindow {} center'.format(
-                root.winfo_pathname(root.winfo_id())))
+    root.eval(
+        'tk::PlaceWindow {} center'.format(
+            root.winfo_pathname(root.winfo_id())
+        )
+    )
     bd = BoolDialog(root, prompt)
     root.mainloop()
     if bd.aborted:
