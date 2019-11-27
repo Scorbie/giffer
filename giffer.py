@@ -156,7 +156,7 @@ def makegif(
     borderrow = [bordercolor] * (canvaswidth + cellsize)
     # Gather contents to write as gif file.
     gifcontent = [header, screendesc, colors.table, applic]
-    for f in xrange(gens*fpg):
+    for f in range(gens*fpg):
         # Graphics control extension
         gifcontent += ["\x21\xF9", struct.pack("<bBH2b", 4, 0x00, pause, 0, 0)]
         # Get data for this frame
@@ -169,12 +169,12 @@ def makegif(
         cells = []
         # The image is made of cell rows (height purecellsize) sandwiched
         # by border rows (height gridwidth).
-        for y in xrange(recty+dy_cell, recty+dy_cell+height+1):
+        for y in range(recty+dy_cell, recty+dy_cell+height+1):
             cells += [borderrow] * gridwidth
             row = []
             # Each row is made of cell pixels (width purecellsize)
             # sandwiched by border pixels (width gridwidth)
-            for x in xrange(rectx+dx_cell, rectx+dx_cell+width+1):
+            for x in range(rectx+dx_cell, rectx+dx_cell+width+1):
                 row += [bordercolor] * gridwidth
                 row += [g.getcell(x, y)] * purecellsize
             row += [bordercolor] * gridwidth
@@ -210,7 +210,7 @@ def compress(data, mincodesize):
     ncolors = 2**mincodesize
     cc, eoi = ncolors, ncolors + 1
 
-    table = {chr(i): i for i in xrange(ncolors)}
+    table = {chr(i): i for i in range(ncolors)}
     codesize = mincodesize + 1
     newcode = ncolors + 2
 
@@ -237,7 +237,7 @@ def compress(data, mincodesize):
                     outputbuff += cc << outputbuffsize
                     outputbuffsize += codesize
                     # Reset table
-                    table = {chr(i): i for i in xrange(ncolors)}
+                    table = {chr(i): i for i in range(ncolors)}
                     newcode = ncolors + 2
                     codesize = mincodesize + 1
             while outputbuffsize >= 8:
@@ -253,7 +253,7 @@ def compress(data, mincodesize):
     output.append(outputbuff)
     # Slice outputbuff into 255-byte chunks
     words = []
-    for start in xrange(0, len(output), 255):
+    for start in range(0, len(output), 255):
         end = min(len(output), start+255)
         words.append(''.join(chr(i) for i in output[start:end]))
     contents = [chr(mincodesize)]
