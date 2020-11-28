@@ -8,7 +8,11 @@ import struct
 
 try:
     from dialog import getstrings
-except:
+except Exception as e:
+    g.note(
+        "Failed to use tk dialog, using fallback.\n"
+        "{}: {}".format(type(e), e)
+    )
     from dialog_fallback import getstrings
 
 ########################################################################
@@ -127,7 +131,7 @@ def parseinputs():
 ########################################################################
 # GIF formatting
 # Useful information on GIF formats in:
-# http://www.matthewflickinger.com/lab/whatsinagif/bits_and_bytes.asp
+# http://www.matthewflickinger.com/lab/whatsinagif/bits_and_bchr.asp
 ########################################################################
 
 def makegif(
@@ -145,11 +149,11 @@ def makegif(
                "Received width: {}, height: {}".format(canvaswidth, canvasheight))
     
 
-    header, trailer = "GIF89a", '\x3B'
+    header, trailer = b"GIF89a", b'\x3B'
     screendesc = struct.pack("<2HB2b", canvaswidth, canvasheight,
                              0x90+colors.size, 0, 0)
-    applic = "\x21\xFF\x0B" + "NETSCAPE2.0" + struct.pack("<2bHb", 3, 1, 0, 0)
-    imagedesc = "\x2C" + struct.pack("<4HB", 0, 0, canvaswidth, canvasheight, 0x00)
+    applic = b"\x21\xFF\x0B" + b"NETSCAPE2.0" + struct.pack("<2bHb", 3, 1, 0, 0)
+    imagedesc = b"\x2C" + struct.pack("<4HB", 0, 0, canvaswidth, canvasheight, 0x00)
 
     bordercolor = 2 ** (colors.size + 1) - 1
     borderrow = [bordercolor] * (canvaswidth + cellsize)
@@ -157,7 +161,7 @@ def makegif(
     gifcontent = [header, screendesc, colors.table, applic]
     for f in range(gens*fpg):
         # Graphics control extension
-        gifcontent += ["\x21\xF9", struct.pack("<bBH2b", 4, 0x00, pause, 0, 0)]
+        gifcontent += [b"\x21\xF9", struct.pack("<bBH2b", 4, 0x00, pause, 0, 0)]
         # Get data for this frame
         dx = int(vx * f * cellsize // (fpg * gens))
         dy = int(vy * f * cellsize // (fpg * gens))
@@ -179,12 +183,10 @@ def makegif(
             row += [bordercolor] * gridwidth
             cells += [row] * purecellsize
         cells += [borderrow] * gridwidth
-        #g.setclipstr('\n'.join(str(row) for row in cells).replace(', ', ''))
-        #g.note('')
         # Cut a canvaswidth x canvasheight image starting from dx_px, dy_px.
         newcells = [row[dx_px:dx_px+canvaswidth] for row in
                     cells[dy_px:dy_px+canvasheight]]
-        image = ''.join(''.join(chr(i) for i in row) for row in newcells)
+        image = [i for row in newcells for i in row]  # list of integers
         # Image descriptor + Image
         gifcontent += [imagedesc, compress(image, colors.size+1)]
         g.show("{}/{}".format(f+1, gens*fpg))
@@ -194,7 +196,7 @@ def makegif(
     gifcontent.append(trailer)
 
     with open(os.path.join(os.getcwd(), filename),"wb") as gif:
-        gif.write("".join(gifcontent))
+        gif.write(b"".join(gifcontent))
     g.show("GIF animation saved in {}".format(filename))
 
 ########################################################################
@@ -208,17 +210,22 @@ def compress(data, mincodesize):
 
     ncolors = 2**mincodesize
     cc, eoi = ncolors, ncolors + 1
+    del eoi  # Not using it
 
-    table = {chr(i): i for i in range(ncolors)}
+    def bchr(i):
+        """A py2/py3 compatible `int(0x??)` to `b'\\x??'` converter"""
+        return bytes((i,))
+
+    table = {bchr(i): i for i in range(ncolors)}
     codesize = mincodesize + 1
     newcode = ncolors + 2
 
     outputbuff, outputbuffsize, output = cc, codesize, []
 
-    databuff = ''
+    databuff = b''
 
-    for next in data:
-        newbuff = databuff + next
+    for next_ in data:
+        newbuff = databuff + bchr(next_)
         if newbuff in table:
             databuff = newbuff
         else:
@@ -227,7 +234,7 @@ def compress(data, mincodesize):
             # Prepend table[databuff] to outputbuff (bitstrings)
             outputbuff += table[databuff] << outputbuffsize
             outputbuffsize += codesize
-            databuff = next
+            databuff = bchr(next_)
             if newcode > 2**codesize:
                 if codesize < 12:
                     codesize += 1
@@ -236,7 +243,7 @@ def compress(data, mincodesize):
                     outputbuff += cc << outputbuffsize
                     outputbuffsize += codesize
                     # Reset table
-                    table = {chr(i): i for i in range(ncolors)}
+                    table = {bchr(chr(i)): i for i in range(ncolors)}
                     newcode = ncolors + 2
                     codesize = mincodesize + 1
             while outputbuffsize >= 8:
@@ -254,14 +261,13 @@ def compress(data, mincodesize):
     words = []
     for start in range(0, len(output), 255):
         end = min(len(output), start+255)
-        words.append(''.join(chr(i) for i in output[start:end]))
-    contents = [chr(mincodesize)]
+        words.append(b''.join(bchr(i) for i in output[start:end]))
+    contents = [bchr(mincodesize)]
     for word in words:
-        contents.append(chr(len(word)))
+        contents.append(bchr(len(word)))
         contents.append(word)
-    contents.append('\x00')
-    return ''.join(contents)
-
+    contents.append(b'\x00')
+    return b''.join(contents)
 ########################################################################
 # Main
 ########################################################################
@@ -271,4 +277,3 @@ def main():
     makegif(colors=lifewiki, rect=rect, **kwargs)
 
 main()
-

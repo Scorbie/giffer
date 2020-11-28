@@ -1,19 +1,22 @@
 import golly as g
-from Tkinter import *
-import ttk
-
+try:  # Py2
+    import Tkinter as tk
+    import ttk
+except ModuleNotFoundError:  # Py3
+    import tkinter as tk
+    import tkinter.ttk as ttk
 
 class StringsDialog(ttk.Frame):
     """A dialog window that can get a multiple string responses."""
     def __init__(self, master, entries, width=10):
         ttk.Frame.__init__(self, master)
-        self.pack(expand=True, fill=BOTH)
+        self.pack(expand=True, fill=tk.BOTH)
         # Response data
         self.respentries = []
         self.aborted = True
-        # Top Dialog frame
+        # tk.TOP Dialog frame
         dialog_frame = ttk.Frame(self)
-        dialog_frame.pack(side=TOP, expand=True, fill=BOTH)
+        dialog_frame.pack(side=tk.TOP, expand=True, fill=tk.BOTH)
         dialog_frame.columnconfigure(0, weight=1)
         dialog_frame.rowconfigure(0, weight=1)
         # Build the items in the window
@@ -33,11 +36,11 @@ class StringsDialog(ttk.Frame):
             self.respentries.append(resp)
         # Select a button below.
         button_frame = ttk.Frame(self)
-        button_frame.pack(side=TOP, expand=True, fill=BOTH)
+        button_frame.pack(side=tk.TOP, expand=True, fill=tk.BOTH)
         button_ok = ttk.Button(button_frame, text="OK", command=self.getresponses)
-        button_ok.pack(side=LEFT, expand=True)
+        button_ok.pack(side=tk.LEFT, expand=True)
         button_cancel = ttk.Button(button_frame, text="Cancel", command=self.master.destroy)
-        button_cancel.pack(side=LEFT, expand=True)
+        button_cancel.pack(side=tk.LEFT, expand=True)
 
     def getresponses(self):
         """Get all the responses and close the window."""
@@ -51,7 +54,7 @@ class BoolDialog(ttk.Frame):
 
     def __init__(self, master, prompt):
         ttk.Frame.__init__(self, master)
-        self.grid(column=0, row=0, sticky=(N, W, E, S))
+        self.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         ttk.Label(self, text=prompt).grid(column=0, row=0)
@@ -83,11 +86,8 @@ def getstrings(entries, title='', width=10):
     title -- the tile text of the window
     width -- the width of the entry box
     """
-    root = Tk()
+    root = tk.Tk()
     root.title(title)
-    # This places the window at the center.
-    root.eval('tk::PlaceWindow {} center'.format(
-                root.winfo_pathname(root.winfo_id())))
     sd = StringsDialog(root, entries, width)
     root.mainloop()
     if sd.aborted:
@@ -101,7 +101,7 @@ def getbool(prompt, title=''):
 
     The script will be aborted if the user hits the dialog's cancel button.
     """
-    root = Tk()
+    root = tk.Tk()
     root.title(title)
     # This places the window at the center.
     root.eval(
