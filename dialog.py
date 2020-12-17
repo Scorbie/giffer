@@ -29,11 +29,12 @@ class StringsDialog(ttk.Frame):
                 raise TypeError(
                     'Each prompt should contain a prompt and an initial value!'
                 )
-            ttk.Label(dialog_frame, text=prompt).grid(column=0, row=index)
+            ttk.Label(dialog_frame, text=prompt, anchor=tk.W).grid(sticky=tk.W, column=0, row=2*index)
             resp = ttk.Entry(dialog_frame, width=width)
-            resp.grid(column=1, row=index)
+            resp.grid(column=1, row=2*index)
             resp.insert(0, initial)
             self.respentries.append(resp)
+            ttk.Separator(dialog_frame, orient=tk.HORIZONTAL).grid(row=2*index+1, column=0, columnspan=2, sticky=(tk.W, tk.E))
         # Select a button below.
         button_frame = ttk.Frame(self)
         button_frame.pack(side=tk.TOP, expand=True, fill=tk.BOTH)
