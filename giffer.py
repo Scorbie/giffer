@@ -5,6 +5,7 @@
 import golly as g
 import os
 import struct
+from collections import namedtuple
 
 try:
     import dialog
@@ -48,7 +49,7 @@ class ColorScheme(object):
 lifewiki = ColorScheme(
     b"\xFF\xFF\xFF" # State 0: white
     b"\x00\x00\x00" # State 1: black
-    b"\x00\x00\x00" # (ignored)
+    b"\xFF\xFF\xFF" # (ignored)
     b"\xC6\xC6\xC6" # Boundary: LifeWiki gray
 )
 
@@ -63,15 +64,12 @@ lifehistory = ColorScheme(
     b"\x00\x00\x00" # Boundary color
 )
 
-# Edit this to set the color scheme.
-colors = lifewiki
-
 ########################################################################
 # Parsing inputs
 ########################################################################
 
 # Sanity check
-def check_selrect():
+def checkselrect():
     rect = g.getselrect()
     if rect == []:
         g.exit("Nothing in selection.")
@@ -87,46 +85,59 @@ def tryint(var, name):
     except:
         g.exit("{} is not an integer: {}".format(name, var))
 
+Params = namedtuple(
+    "Params", [
+        "gens", "offset", "filename",
+        "time_per_gen", "time_per_frame",
+        "purecellsize", "gridwidth",
+    ]
+)
+
 
 def parseinputs():
+
     # Get params
-    gens, fpg, pause, purecellsize, gridwidth, v, filename = dialog.getstrings(entries=[
-        ("Number of generations for the GIF file to run:", "4"),
-        ("The number of frames per generation (1 for statonary patterns):", "1"),
-        ("The pause time of each generation in centisecs:", "50"),
-        ("The size of each cell in pixels:", "14"),
-        ("The width of gridlines in pixels:", "2"),
-        ("The offset of the total period:", "0 0"),
+    (
+        gens, dx, dy,
+        time_per_gen, frames_per_gen,
+        purecellsize, gridwidth,
+        filename
+    ) = dialog.getstrings(entries=[
+        ("Number of generations\nfor the GIF file to run:", "4"),
+        ("The X offset throughout\nthe whole animation (cells):", "0"),
+        ("The Y offset throughout\nthe whole animation (cells):", "0"),
+        ("The duration for each gen (ms):", "400"),
+        ("The number of frames per gen\n(Only 0 for max smoothness):", "0"),
+        ("The size of each cell (px):", "15"),
+        ("The width of gridlines (px):", "1"),
         ("The file name:", "out.gif")
     ])
 
-    # Sanity check params
-    try:
-        vx, vy = v.split()
-    except:
-        g.exit("You should enter the speed as {x velocity} {y velocity}.\n"
-               "ex1) 0 0\t ex2) -1 3")
-
+    # Validate and Convert params
     gens = tryint(gens, "Number of gens")
-    pause = tryint(pause, "Pause time")
     purecellsize = tryint(purecellsize, "Cell size")
     gridwidth = tryint(gridwidth, "Grid width")
-    vx = tryint(vx, "X velocity")
-    vy = tryint(vy, "Y velocity")
-    fpg = tryint(fpg, "Frames per gen")
+    dx, dy = tryint(dx, "X Offset"), tryint(dy, "Y Offset")
+    time_per_gen = tryint(time_per_gen, "Duration per gen")
+    time_per_gen //= 10
+    frames_per_gen = tryint(frames_per_gen, "Frames per gen")
+    if (dx, dy) == (0, 0):
+        time_per_frame = time_per_gen
+    elif frames_per_gen == 0:
+        time_per_frame = 5
+    else:
+        time_per_frame = time_per_gen // frames_per_gen
 
-    pause //= fpg
-
-    return {
-        "gens": gens,
-        "fpg" : fpg,
-        "vx": vx,
-        "vy": vy,
-        "purecellsize": purecellsize,
-        "gridwidth": gridwidth,
-        "pause": pause,
-        "filename": filename
-    }
+    # Return
+    return Params(
+        gens=gens,
+        offset=(dx, dy),
+        filename=filename,
+        time_per_gen=time_per_gen,
+        time_per_frame=time_per_frame,
+        purecellsize=purecellsize,
+        gridwidth=gridwidth,
+    )
 
 ########################################################################
 # GIF formatting
@@ -134,70 +145,83 @@ def parseinputs():
 # http://www.matthewflickinger.com/lab/whatsinagif/bits_and_bchr.asp
 ########################################################################
 
-def makegif(
-    gens, fpg, pause, vx, vy,
-    rect, purecellsize, gridwidth,
-    colors, filename
-):
+def makegif(colors, rect, params):
+
+    # Get canvas size
     rectx, recty, width, height = rect
-    cellsize = purecellsize + gridwidth
-    canvasheight = cellsize*height + gridwidth
-    canvaswidth = cellsize*width + gridwidth
+    cellsize = params.purecellsize + params.gridwidth
+    canvasheight = cellsize*height + params.gridwidth
+    canvaswidth = cellsize*width + params.gridwidth
 
-    if(canvaswidth>=65536 or canvasheight>=65536):
-        g.exit("The width or height of the GIF file must be less than 65536 pixels. "
-               "Received width: {}, height: {}".format(canvaswidth, canvasheight))
-    
+    # Validate canvas size
+    if canvaswidth >= 65536 or canvasheight >= 65536:
+        g.exit(
+            "The width or height of the GIF file must be less than 65536 pixels."
+            "Received width: {}, height: {}".format(canvaswidth, canvasheight)
+        )
 
-    header, trailer = b"GIF89a", b'\x3B'
-    screendesc = struct.pack("<2HB2b", canvaswidth, canvasheight,
-                             0x90+colors.size, 0, 0)
+    # Generate header
+    header = b"GIF89a"
+    screendesc = struct.pack("<2HB2b", canvaswidth, canvasheight, colors.size+0x90, 0, 0)
     applic = b"\x21\xFF\x0B" + b"NETSCAPE2.0" + struct.pack("<2bHb", 3, 1, 0, 0)
     imagedesc = b"\x2C" + struct.pack("<4HB", 0, 0, canvaswidth, canvasheight, 0x00)
 
+    # Buildup body
     bordercolor = 2 ** (colors.size + 1) - 1
     borderrow = [bordercolor] * (canvaswidth + cellsize)
     # Gather contents to write as gif file.
     gifcontent = [header, screendesc, colors.table, applic]
-    for f in range(gens*fpg):
+    # Helper variables
+    gif_total_time = params.time_per_gen * params.gens
+    gif_num_frames = gif_total_time // params.time_per_frame
+    gif_dx, gif_dy = params.offset
+    gif_dx_px, gif_dy_px = gif_dx * cellsize, gif_dy * cellsize
+    for frame_time in range(0, gif_total_time, params.time_per_frame):
         # Graphics control extension
-        gifcontent += [b"\x21\xF9", struct.pack("<bBH2b", 4, 0x00, pause, 0, 0)]
-        # Get data for this frame
-        dx = int(vx * f * cellsize // (fpg * gens))
-        dy = int(vy * f * cellsize // (fpg * gens))
-        dx_cell, dx_px = divmod(dx, cellsize)
-        dy_cell, dy_px = divmod(dy, cellsize)
+        gifcontent += [b"\x21\xF9", struct.pack("<bBH2b", 4, 0x00, params.time_per_frame, 0, 0)]
+        # Get cumulative offset for this frame:
+        # "Perunage" used as a term like "Percentage"; Couldn't find a better word.
+        dx_px = gif_dx_px * frame_time // gif_total_time
+        dy_px = gif_dy_px * frame_time // gif_total_time
+        # Set offset in total cells && remaining pixels
+        dx_cell, dx_subpx = divmod(dx_px, cellsize)
+        dy_cell, dy_subpx = divmod(dy_px, cellsize)
         # Get cell states (shifted dx_cell, dy_cell)
         # The bounding box is [rectx+dx_cell, recty+dy_cell, width+1, height+1]
         cells = []
         # The image is made of cell rows (height purecellsize) sandwiched
         # by border rows (height gridwidth).
         for y in range(recty+dy_cell, recty+dy_cell+height+1):
-            cells += [borderrow] * gridwidth
+            cells += [borderrow] * params.gridwidth
             row = []
             # Each row is made of cell pixels (width purecellsize)
             # sandwiched by border pixels (width gridwidth)
             for x in range(rectx+dx_cell, rectx+dx_cell+width+1):
-                row += [bordercolor] * gridwidth
-                row += [g.getcell(x, y)] * purecellsize
-            row += [bordercolor] * gridwidth
-            cells += [row] * purecellsize
-        cells += [borderrow] * gridwidth
+                row += [bordercolor] * params.gridwidth
+                row += [g.getcell(x, y)] * params.purecellsize
+            row += [bordercolor] * params.gridwidth
+            cells += [row] * params.purecellsize
+        cells += [borderrow] * params.gridwidth
         # Cut a canvaswidth x canvasheight image starting from dx_px, dy_px.
-        newcells = [row[dx_px:dx_px+canvaswidth] for row in
-                    cells[dy_px:dy_px+canvasheight]]
+        newcells = [
+            row[dx_subpx:dx_subpx+canvaswidth]
+            for row in cells[dy_subpx:dy_subpx+canvasheight]
+        ]
         image = [i for row in newcells for i in row]  # list of integers
         # Image descriptor + Image
         gifcontent += [imagedesc, compress(image, colors.size+1)]
-        g.show("{}/{}".format(f+1, gens*fpg))
-        if (f % fpg == fpg - 1):
-            g.run(1)
+        g.show("Frame {}/{}".format(frame_time//params.time_per_frame+1, gif_num_frames))
+        current_gen = frame_time // params.time_per_gen
+        next_gen = (frame_time + params.time_per_frame) // params.time_per_gen
+        if next_gen > current_gen:
+            g.run(next_gen - current_gen)
             g.update()
+    trailer = b'\x3B'
     gifcontent.append(trailer)
 
-    with open(os.path.join(os.getcwd(), filename),"wb") as gif:
+    with open(os.path.join(os.getcwd(), params.filename),"wb") as gif:
         gif.write(b"".join(gifcontent))
-    g.show("GIF animation saved in {}".format(filename))
+    g.show("GIF animation saved in {}".format(params.filename))
 
 ########################################################################
 # GIF compression
@@ -272,8 +296,7 @@ def compress(data, mincodesize):
 # Main
 ########################################################################
 def main():
-    rect = check_selrect()
-    kwargs = parseinputs()
-    makegif(colors=lifewiki, rect=rect, **kwargs)
+    params = parseinputs()
+    makegif(colors=lifewiki, rect=checkselrect(), params=params)
 
 main()
