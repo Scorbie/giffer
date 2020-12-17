@@ -7,13 +7,13 @@ import os
 import struct
 
 try:
-    from dialog import getstrings
+    import dialog
 except Exception as e:
     g.note(
         "Failed to use tk dialog, using fallback.\n"
         "{}: {}".format(type(e), e)
     )
-    from dialog_fallback import getstrings
+    import dialog_fallback as dialog
 
 ########################################################################
 # Color schemes
@@ -90,7 +90,7 @@ def tryint(var, name):
 
 def parseinputs():
     # Get params
-    gens, fpg, pause, purecellsize, gridwidth, v, filename = getstrings(entries=[
+    gens, fpg, pause, purecellsize, gridwidth, v, filename = dialog.getstrings(entries=[
         ("Number of generations for the GIF file to run:", "4"),
         ("The number of frames per generation (1 for statonary patterns):", "1"),
         ("The pause time of each generation in centisecs:", "50"),
@@ -98,7 +98,7 @@ def parseinputs():
         ("The width of gridlines in pixels:", "2"),
         ("The offset of the total period:", "0 0"),
         ("The file name:", "out.gif")
-        ])
+    ])
 
     # Sanity check params
     try:
